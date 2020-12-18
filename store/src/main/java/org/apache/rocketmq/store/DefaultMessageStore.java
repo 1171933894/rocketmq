@@ -1495,12 +1495,22 @@ public class DefaultMessageStore implements MessageStore {
         return runningFlags;
     }
 
+    /**
+     * 执行调度请求
+     * 1. 非事务消息 或 事务提交消息 建立 消息位置信息 到 ConsumeQueue
+     * 2. 建立 索引信息 到 IndexFile
+     *
+     * @param req 调度请求
+     */
     public void doDispatch(DispatchRequest req) {
         for (CommitLogDispatcher dispatcher : this.dispatcherList) {
             dispatcher.dispatch(req);
         }
     }
 
+    /**
+     * 建立 消息位置信息 到 ConsumeQueue
+     */
     public void putMessagePositionInfo(DispatchRequest dispatchRequest) {
         ConsumeQueue cq = this.findConsumeQueue(dispatchRequest.getTopic(), dispatchRequest.getQueueId());
         cq.putMessagePositionInfoWrapper(dispatchRequest);
@@ -1877,6 +1887,9 @@ public class DefaultMessageStore implements MessageStore {
 
     class ReputMessageService extends ServiceThread {
 
+        /**
+         * 开始重放消息的CommitLog物理位置
+         */
         private volatile long reputFromOffset = 0;
 
         public long getReputFromOffset() {
@@ -1904,14 +1917,27 @@ public class DefaultMessageStore implements MessageStore {
             super.shutdown();
         }
 
+        /**
+         * 剩余需要重放消息字节数
+         *
+         * @return 字节数
+         */
         public long behind() {
             return DefaultMessageStore.this.commitLog.getMaxOffset() - this.reputFromOffset;
         }
 
+        /**
+         * 是否commitLog需要重放消息
+         *
+         * @return 是否
+         */
         private boolean isCommitLogAvailable() {
             return this.reputFromOffset < DefaultMessageStore.this.commitLog.getMaxOffset();
         }
 
+        /**
+         * 取从reputFromOffset开始的commitLog对应的MappeFile对应的MappedByteBuffer
+         */
         private void doReput() {
             if (this.reputFromOffset < DefaultMessageStore.this.commitLog.getMinOffset()) {
                 log.warn("The reputFromOffset={} is smaller than minPyOffset={}, this usually indicate that the dispatch behind too much and the commitlog has expired.",
@@ -1925,20 +1951,26 @@ public class DefaultMessageStore implements MessageStore {
                     break;
                 }
 
+                // 获取从reputFromOffset开始的commitLog对应的MappeFile对应的MappedByteBuffer
                 SelectMappedBufferResult result = DefaultMessageStore.this.commitLog.getData(reputFromOffset);
                 if (result != null) {
                     try {
                         this.reputFromOffset = result.getStartOffset();
 
+                        // 遍历MappedByteBuffer
                         for (int readSize = 0; readSize < result.getSize() && doNext; ) {
+                            // 生成重放消息重放调度请求
                             DispatchRequest dispatchRequest =
                                 DefaultMessageStore.this.commitLog.checkMessageAndReturnSize(result.getByteBuffer(), false, false);
+                            // 消息长度
                             int size = dispatchRequest.getBufferSize() == -1 ? dispatchRequest.getMsgSize() : dispatchRequest.getBufferSize();
 
-                            if (dispatchRequest.isSuccess()) {
-                                if (size > 0) {
+                            // 根据请求的结果处理
+                            if (dispatchRequest.isSuccess()) {// 读取成功
+                                if (size > 0) {// 读取Message
                                     DefaultMessageStore.this.doDispatch(dispatchRequest);
 
+                                    // 通知有新消息
                                     if (BrokerRole.SLAVE != DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole()
                                         && DefaultMessageStore.this.brokerConfig.isLongPollingEnable()) {
                                         DefaultMessageStore.this.messageArrivingListener.arriving(dispatchRequest.getTopic(),
@@ -1949,6 +1981,7 @@ public class DefaultMessageStore implements MessageStore {
 
                                     this.reputFromOffset += size;
                                     readSize += size;
+                                    // 统计
                                     if (DefaultMessageStore.this.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE) {
                                         DefaultMessageStore.this.storeStatsService
                                             .getSinglePutMessageTopicTimesTotal(dispatchRequest.getTopic()).incrementAndGet();
@@ -1956,16 +1989,16 @@ public class DefaultMessageStore implements MessageStore {
                                             .getSinglePutMessageTopicSizeTotal(dispatchRequest.getTopic())
                                             .addAndGet(dispatchRequest.getMsgSize());
                                     }
-                                } else if (size == 0) {
+                                } else if (size == 0) {// 读取到MappedFile文件尾
                                     this.reputFromOffset = DefaultMessageStore.this.commitLog.rollNextFile(this.reputFromOffset);
                                     readSize = result.getSize();
                                 }
-                            } else if (!dispatchRequest.isSuccess()) {
+                            } else if (!dispatchRequest.isSuccess()) {// 读取失败
 
-                                if (size > 0) {
+                                if (size > 0) {// 读取到Message却不是Message
                                     log.error("[BUG]read total count not equals msg total size. reputFromOffset={}", reputFromOffset);
                                     this.reputFromOffset += size;
-                                } else {
+                                } else {// 读取到Blank却不是Blank
                                     doNext = false;
                                     // If user open the dledger pattern or the broker is master node,
                                     // it will not ignore the exception and fix the reputFromOffset variable
