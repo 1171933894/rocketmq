@@ -317,12 +317,14 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws MQBrokerException if there is any error with broker.
      * @throws InterruptedException if the sending thread is interrupted.
      */
+    /**
+     * 发送同步消息，DefaultMQProducer#send(Message) 对 DefaultMQProducerImpl#send(Message) 进行封装。
+     */
     @Override
     public SendResult send(
         Message msg) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         Validators.checkMessage(msg, this);
         msg.setTopic(withNamespace(msg.getTopic()));
-        // 发送同步消息，DefaultMQProducer#send(Message) 对 DefaultMQProducerImpl#send(Message) 进行封装
         return this.defaultMQProducerImpl.send(msg);
     }
 
