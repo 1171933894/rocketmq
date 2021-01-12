@@ -765,6 +765,9 @@ public class DefaultMQPushConsumer extends ClientConfig implements MQPushConsume
      * @param fullClassName full class name,must extend org.apache.rocketmq.common.filter. MessageFilter
      * @param filterClassSource class source code,used UTF-8 file encoding,must be responsible for your code safety
      */
+    /**
+     * Consumer 针对每个 Topic 可以订阅不同的 过滤类代码
+     */
     @Override
     public void subscribe(String topic, String fullClassName, String filterClassSource) throws MQClientException {
         this.defaultMQPushConsumerImpl.subscribe(withNamespace(topic), fullClassName, filterClassSource);
