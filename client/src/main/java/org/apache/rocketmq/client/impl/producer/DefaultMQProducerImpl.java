@@ -1126,6 +1126,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return this.sendSelectImpl(msg, selector, arg, CommunicationMode.SYNC, null, timeout);
     }
 
+    /**
+     * 选择消息队列发送消息
+     */
     private SendResult sendSelectImpl(
         Message msg,
         MessageQueueSelector selector,
