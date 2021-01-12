@@ -24,6 +24,12 @@ import org.apache.rocketmq.client.exception.MQClientException;
 /**
  * Push consumer
  */
+
+/**
+ * 名字虽然是 Push 开头，实际在实现时，使用 Pull 方式实现。通过 Pull 不断不断不断轮询 Broker 获取消息。
+ * 当不存在新消息时，Broker 会挂起请求，直到有新消息产生，取消挂起，返回新消息。这样，基本和 Broker 主动
+ * Push 做到接近的实时性（当然，还是有相应的实时性损失）。原理类似 长轮询( Long-Polling )。
+ */
 public interface MQPushConsumer extends MQConsumer {
     /**
      * Start the consumer
