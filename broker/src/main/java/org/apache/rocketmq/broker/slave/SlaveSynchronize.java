@@ -28,6 +28,11 @@ import org.apache.rocketmq.common.protocol.body.SubscriptionGroupWrapper;
 import org.apache.rocketmq.common.protocol.body.TopicConfigSerializeWrapper;
 import org.apache.rocketmq.store.config.StorePathConfigHelper;
 
+/**
+ * 1、每个分组，Master节点 不断发送新的 CommitLog 给 Slave节点。 Slave节点 不断上报本地的 CommitLog 已经同步到的位置给 Master节点。
+ * 2、Broker分组 与 Broker分组 之间没有任何关系，不进行通信与数据同步。
+ * 3、集群内，Master节点 有两种类型：Master_SYNC、Master_ASYNC：前者在 Producer 发送消息时，等待 Slave节点 存储完毕后再返回发送结果，而后者不需要等待。
+ */
 public class SlaveSynchronize {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.BROKER_LOGGER_NAME);
     private final BrokerController brokerController;
