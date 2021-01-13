@@ -519,6 +519,7 @@ public class RouteInfoManager {
 
             try {
                 try {
+                    // 申请写锁
                     this.lock.writeLock().lockInterruptibly();
                     this.brokerLiveTable.remove(brokerAddrFound);
                     this.filterServerTable.remove(brokerAddrFound);
@@ -599,6 +600,7 @@ public class RouteInfoManager {
                         }
                     }
                 } finally {
+                    // 释放锁，完成路由删除
                     this.lock.writeLock().unlock();
                 }
             } catch (Exception e) {

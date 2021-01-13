@@ -344,10 +344,17 @@ public class DefaultRequestProcessor extends AsyncNettyRequestProcessor implemen
         final GetRouteInfoRequestHeader requestHeader =
             (GetRouteInfoRequestHeader) request.decodeCommandCustomHeader(GetRouteInfoRequestHeader.class);
 
+        /**
+         * 调用 RouterlnfoManager 的方法，从路由 表 topicQueueTable 、 brokerAddrTable 、 filterServerTable
+         * 中分别填充 TopicRouteData 中的 List<QueueData＞、 List<BrokerData＞和 filterServer 地址表
+         */
         TopicRouteData topicRouteData = this.namesrvController.getRouteInfoManager().pickupTopicRouteData(requestHeader.getTopic());
 
         if (topicRouteData != null) {
             if (this.namesrvController.getNamesrvConfig().isOrderMessageEnable()) {
+                /**
+                 * 如果找到主题对应的路由信息并且该主题为顺序消息，则从 NameServerKVconfig 中获取关于顺序消息相关的配置填充路由信息
+                 */
                 String orderTopicConf =
                     this.namesrvController.getKvConfigManager().getKVConfig(NamesrvUtil.NAMESPACE_ORDER_TOPIC_CONFIG,
                         requestHeader.getTopic());
