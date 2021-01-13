@@ -35,7 +35,7 @@ import java.util.List;
  * 3. Extract UnaryInExpression to an independent class.
  * </p>
  */
-public abstract class UnaryExpression implements Expression {
+public abstract class UnaryExpression implements Expression {// unary：一元
 
     private static final BigDecimal BD_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE);
     protected Expression right;
