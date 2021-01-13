@@ -127,6 +127,15 @@ public class BrokerOuterAPI {
         List<String> nameServerAddressList = this.remotingClient.getNameServerAddressList();
         if (nameServerAddressList != null && nameServerAddressList.size() > 0) {
 
+            /**
+             * 发送心跳包具体逻辑，首先封装请求包头（Header）
+             *
+             * brokerAddr: broker 地址
+             * brokerId: brokerld,O:Master：，大于 0: Slave
+             * brokerName: broker 名称
+             * clusterName ： 集群名称
+             * haServerAddr: master 地址，初次请求时该值为空， slave 向 Nameserver 注册后返回
+             */
             final RegisterBrokerRequestHeader requestHeader = new RegisterBrokerRequestHeader();
             requestHeader.setBrokerAddr(brokerAddr);
             requestHeader.setBrokerId(brokerId);
@@ -136,17 +145,24 @@ public class BrokerOuterAPI {
             requestHeader.setCompressed(compressed);
 
             RegisterBrokerBody requestBody = new RegisterBrokerBody();
+            /**
+             * 主题配置， topicConfigWrapper 内部封装的是 TopicConfigManager 中的 topicConfigTable ，内部存储的是 Broker 启动时默认的 一些 Topic,
+             * MixAll.SELF_TEST_TOPIC 、 MixAll.DEFAULT_TOPIC ( AutoCreateTopicEnable=true ), MixAll.BENCHMARK_TOPIC 、 MixAll.OFFSET_MOVED
+             * EVENT 、 BrokerConfig#brokerClusterName 、 BrokerConfig#brokerName 。 Broker 中 Topic 默认存储在$｛ Rocket_Home｝／store/confg/topic.json 中
+             */
             requestBody.setTopicConfigSerializeWrapper(topicConfigWrapper);
+            // 消息过滤服务器列表
             requestBody.setFilterServerList(filterServerList);
             final byte[] body = requestBody.encode(compressed);
             final int bodyCrc32 = UtilAll.crc32(body);
             requestHeader.setBodyCrc32(bodyCrc32);
             final CountDownLatch countDownLatch = new CountDownLatch(nameServerAddressList.size());
-            for (final String namesrvAddr : nameServerAddressList) {// 循环多个 Namesrv
+            for (final String namesrvAddr : nameServerAddressList) {// 遍历所有 NameServer 列表
                 brokerOuterExecutor.execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
+                            // 分别向 NameServer 注册
                             RegisterBrokerResult result = registerBroker(namesrvAddr,oneway, timeoutMills,requestHeader,body);
                             if (result != null) {
                                 registerBrokerResultList.add(result);

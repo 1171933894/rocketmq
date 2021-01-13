@@ -887,6 +887,13 @@ public class BrokerController {
             this.registerBrokerAll(true, false, true);
         }
 
+        /**
+         * RocketMQ 路由注册是通过 Broker 与 Name Server 的心跳功能 实现的 。 Broker 启动时
+         * 向集群中所有的NameServer发送心跳语句，每隔 30s 向集群中所有 NameServer 发送心
+         * 跳包， NameServer 收到 Broker 心 跳包时会更新 brokerLiveTable 缓存中 BrokerLivelnfo 的
+         * lastUpdateTimestamp ，然后 NameServer 每隔 10s 扫描 brokerLiveTable ，如果连续 120s 没
+         * 有收到心跳包， NameServer 将移除该 Broker 的路由 信息 同时关闭 Socket 连接
+         */
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

@@ -123,6 +123,10 @@ public class RouteInfoManager {
         RegisterBrokerResult result = new RegisterBrokerResult();
         try {
             try {
+                /**
+                 * 路由 注册需要加写锁 ，防止并发修改 RoutelnfoManager 中的路由表 。 首先判断 Broker
+                 * 所属集群是否存在，如果不存在，则创建，然后将 broker 名加入到集群 Broker 集合中
+                 */
                 this.lock.writeLock().lockInterruptibly();
 
                 Set<String> brokerNames = this.clusterAddrTable.get(clusterName);
@@ -134,6 +138,12 @@ public class RouteInfoManager {
 
                 boolean registerFirst = false;
 
+                /**
+                 * 维护 BrokerData 信 息 ，首 先从 brokerAddrTable 根据 BrokerName 尝试获取
+                 * Broker 信息 ，如 果 不 存在， 则 新建 BrokerData 并放入到 brokerAddrTable ,
+                 * registerFirst 设置为 true ；如果存在，直接替换原先的，registerFirst 设置为
+                 * false，表示非第一次注册
+                 */
                 BrokerData brokerData = this.brokerAddrTable.get(brokerName);
                 if (null == brokerData) {
                     registerFirst = true;
@@ -154,6 +164,13 @@ public class RouteInfoManager {
                 String oldAddr = brokerData.getBrokerAddrs().put(brokerId, brokerAddr);
                 registerFirst = registerFirst || (null == oldAddr);
 
+                /**
+                 * 如果 Broker 为 Master ，并且 Broker Topic 配置信息发生变化或者是初次注册 ，
+                 * 则需要创建或更新 Topic 路由元数据，填充 topicQueueTable ，其实就是为默认主题自动注
+                 * 册路由信息，其中包含 MixAII.DEFAULT_TOPIC 的路由信息 。当消息生产者发送主题时 ，
+                 * 如果该主题未创建并且 BrokerConfig 的 autoCreateTopicEnable 为 true 时，将返回 MixAII.
+                 * DEFAULT_TOPIC的路由信息
+                 */
                 if (null != topicConfigWrapper
                     && MixAll.MASTER_ID == brokerId) {
                     if (this.isBrokerTopicConfigChanged(brokerAddr, topicConfigWrapper.getDataVersion())
@@ -168,6 +185,9 @@ public class RouteInfoManager {
                     }
                 }
 
+                /**
+                 * 更新 BrokerLivelnfo，存活 Broker 信息表，BrokeLivelnfo 是执行路由删除的重要依据
+                 */
                 BrokerLiveInfo prevBrokerLiveInfo = this.brokerLiveTable.put(brokerAddr,
                     new BrokerLiveInfo(
                         System.currentTimeMillis(),
@@ -186,6 +206,11 @@ public class RouteInfoManager {
                     }
                 }
 
+                /**
+                 * 注册 Broker 的过滤器 Server 地址列表 ，一个 Broker 上会关联多个 FilterServer
+                 * 消息过滤服务器，此部分内容将在第 6 章详细介绍；如果此 Broker 为从节点，则需要查找
+                 * 该 Broker 的 Master 的节点信息，并更新对应的 masterAddr 属性
+                 */
                 if (MixAll.MASTER_ID != brokerId) {
                     String masterAddr = brokerData.getBrokerAddrs().get(MixAll.MASTER_ID);
                     if (masterAddr != null) {
@@ -226,6 +251,9 @@ public class RouteInfoManager {
         }
     }
 
+    /**
+     * 根据 TopicConfig 创建 QueueData 数据结构 ，然后更新 topicQueueTable
+     */
     private void createAndUpdateQueueData(final String brokerName, final TopicConfig topicConfig) {
         QueueData queueData = new QueueData();
         queueData.setBrokerName(brokerName);
@@ -438,6 +466,12 @@ public class RouteInfoManager {
         return null;
     }
 
+    /**
+     * 遍历 brokerLivelnfo 路由表（HashMap），检测 BrokerLiveInfo 的 lastUpdateTimestamp
+     * 上次收到心跳包的时间如果超过当前时间 l20s, NameServer 则认为该 Broker 已不可用，
+     * 故需要将它移除，关闭 Channel ，然后删除与该 Broker 相关的路由信息，路由表维护过程，
+     * 需要申请写锁
+     */
     public void scanNotActiveBroker() {
         Iterator<Entry<String, BrokerLiveInfo>> it = this.brokerLiveTable.entrySet().iterator();
         while (it.hasNext()) {
