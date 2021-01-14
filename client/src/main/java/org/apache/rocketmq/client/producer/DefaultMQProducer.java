@@ -16,9 +16,6 @@
  */
 package org.apache.rocketmq.client.producer;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
 import org.apache.rocketmq.client.ClientConfig;
 import org.apache.rocketmq.client.QueryResult;
 import org.apache.rocketmq.client.Validators;
@@ -31,17 +28,15 @@ import org.apache.rocketmq.client.trace.AsyncTraceDispatcher;
 import org.apache.rocketmq.client.trace.TraceDispatcher;
 import org.apache.rocketmq.client.trace.hook.SendMessageTraceHookImpl;
 import org.apache.rocketmq.common.MixAll;
-import org.apache.rocketmq.common.message.Message;
-import org.apache.rocketmq.common.message.MessageBatch;
-import org.apache.rocketmq.common.message.MessageClientIDSetter;
-import org.apache.rocketmq.common.message.MessageDecoder;
-import org.apache.rocketmq.common.message.MessageExt;
-import org.apache.rocketmq.common.message.MessageId;
-import org.apache.rocketmq.common.message.MessageQueue;
+import org.apache.rocketmq.common.message.*;
 import org.apache.rocketmq.common.topic.TopicValidator;
 import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.remoting.RPCHook;
 import org.apache.rocketmq.remoting.exception.RemotingException;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 /**
  * This class is the entry point for applications intending to send messages. </p>
@@ -70,26 +65,31 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      *
      * See {@linktourl http://rocketmq.apache.org/docs/core-concept/} for more discussion.
      */
+    // 生产者所属组，消息服务器在回查事务状态时会随机选择该组中任何一个生产者发起事务回查请求
     private String producerGroup;
 
     /**
      * Just for testing or demo program
      */
+    // 默认 topicKey
     private String createTopicKey = TopicValidator.AUTO_CREATE_TOPIC_KEY_TOPIC;
 
     /**
      * Number of queues to create per default topic.
      */
+    // 默认主题在每一个 Broker 队列数量
     private volatile int defaultTopicQueueNums = 4;
 
     /**
      * Timeout for sending messages.
      */
+    // 发送消息默认超时时间，默认 3s
     private int sendMsgTimeout = 3000;
 
     /**
      * Compress message body threshold, namely, message body larger than 4k will be compressed on default.
      */
+    //
     private int compressMsgBodyOverHowmuch = 1024 * 4;
 
     /**
@@ -751,10 +751,18 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param queueNum topic's queue number
      * @throws MQClientException if there is any client error.
      */
+    /**
+     * 创建主题
+     *
+     * @param key      accesskey 目前未实际作用，可以与 newTopic 相同
+     * @param newTopic topic name 主题名称
+     * @param queueNum topic's queue number 队列数量
+     * @throws MQClientException
+     */
     @Deprecated
     @Override
     public void createTopic(String key, String newTopic, int queueNum) throws MQClientException {
-        createTopic(key, withNamespace(newTopic), queueNum, 0);
+        createTopic(key, withNamespace(newTopic), queueNum, 0);// 主题系统标签，默认为 0
     }
 
     /**
@@ -781,6 +789,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @return Consume queue offset.
      * @throws MQClientException if there is any client error.
      */
+    /**
+     * 根据时间戳从队列中查找其偏移量
+     */
     @Override
     public long searchOffset(MessageQueue mq, long timestamp) throws MQClientException {
         return this.defaultMQProducerImpl.searchOffset(queueWithNamespace(mq), timestamp);
@@ -794,6 +805,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param mq Instance of MessageQueue
      * @return maximum offset of the given consume queue.
      * @throws MQClientException if there is any client error.
+     */
+    /**
+     * 查找该消息队列中最大的物理偏移量
      */
     @Deprecated
     @Override
@@ -809,6 +823,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @param mq Instance of MessageQueue
      * @return minimum offset of the given message queue.
      * @throws MQClientException if there is any client error.
+     */
+    /**
+     * 查找该消息队列中最小物理偏移量
      */
     @Deprecated
     @Override
@@ -843,6 +860,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @throws RemotingException if there is any network-tier error.
      * @throws InterruptedException if the sending thread is interrupted.
      */
+    /**
+     * 根据消息偏移量查找消息
+     */
     @Deprecated
     @Override
     public MessageExt viewMessage(
@@ -863,6 +883,9 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * @return QueryResult instance contains matched messages.
      * @throws MQClientException if there is any client error.
      * @throws InterruptedException if the thread is interrupted.
+     */
+    /**
+     * 根据条件查询消息
      */
     @Deprecated
     @Override
