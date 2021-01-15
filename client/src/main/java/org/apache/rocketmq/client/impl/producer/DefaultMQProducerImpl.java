@@ -146,6 +146,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
                 this.checkConfig();
 
+                // 检查 productGroup 是否符合要求；并改变生产者的 instanceName 为进程ID
                 if (!this.defaultMQProducer.getProducerGroup().equals(MixAll.CLIENT_INNER_PRODUCER_GROUP)) {
                     this.defaultMQProducer.changeInstanceNameToPID();
                 }
@@ -665,6 +666,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             null).setResponseCode(ClientErrorCode.NOT_FOUND_TOPIC_EXCEPTION);
     }
 
+    /**
+     * tryToFindTopicPublishInfo 是查找主题的路由信息的方法 。 如果生产者中缓存了 topic
+     * 的路由信息，如果该路由信息中包含了消息队列，则直接返回该路由信息，如果没有缓存
+     * 或没有包含消息队列， 则向 NameServer 查询该 topic 的路由信息。如果最终未找到路由信
+     * 息，则抛出异常：无法找到主题相关路由信息异常。 先看一下 TopicPublishInfo
+     */
     private TopicPublishInfo tryToFindTopicPublishInfo(final String topic) {
         // 缓存中获取 Topic发布信息
         TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
@@ -689,6 +696,19 @@ public class DefaultMQProducerImpl implements MQProducerInner {
      * 发送消息核心方法。该方法真正发起网络请求，发送消息给 Broker
      * 1）构建发送消息请求SendMessageRequestHeader。
      * 2）执行 MQClientInstance#sendMessage(...) 发起网络请求。
+     */
+    /**
+     * @param msg 待发送消息
+     * @param mq 消息将发送到该消息队列上
+     * @param communicationMode 消息发送模式 ，SYNC 、 ASYNC 、ONEWAY
+     * @param sendCallback 异步消息回调函数
+     * @param topicPublishInfo 主题路由信息
+     * @param timeout 消息发送超时时间
+     * @return
+     * @throws MQClientException
+     * @throws RemotingException
+     * @throws MQBrokerException
+     * @throws InterruptedException
      */
     private SendResult sendKernelImpl(final Message msg,
         final MessageQueue mq,

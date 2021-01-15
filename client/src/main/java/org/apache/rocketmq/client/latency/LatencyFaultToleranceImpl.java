@@ -39,6 +39,11 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
      */
     private final ThreadLocalIndex whichItemWorst = new ThreadLocalIndex();
 
+    /**
+     * @param name brokerName
+     * @param currentLatency 消息发送故障延迟时间
+     * @param notAvailableDuration  不可用持续时辰，在这个时间内，Broker 将被规避
+     */
     @Override
     public void updateFaultItem(final String name, final long currentLatency, final long notAvailableDuration) {
         FaultItem old = this.faultItemTable.get(name);
@@ -117,19 +122,19 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
     }
 
     /**
-     * 说明 ：对象故障信息。维护对象的名字、延迟、开始可用的时间
+     * 说明 ：对象故障信息。维护对象的名字、延迟、开始可用的时间（失败条目（规避规则条目））
      */
     class FaultItem implements Comparable<FaultItem> {
         /**
-         * 对象名
+         * 对象名（条目唯一键，这里为 brokerName）
          */
         private final String name;
         /**
-         * 延迟
+         * 延迟（本次消息发送延迟）
          */
         private volatile long currentLatency;
         /**
-         * 开始可用时间
+         * 开始可用时间（故障规避开始时间）
          */
         private volatile long startTimestamp;
 

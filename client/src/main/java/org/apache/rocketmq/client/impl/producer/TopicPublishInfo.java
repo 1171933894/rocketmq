@@ -16,17 +16,27 @@
  */
 package org.apache.rocketmq.client.impl.producer;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.rocketmq.client.common.ThreadLocalIndex;
 import org.apache.rocketmq.common.message.MessageQueue;
 import org.apache.rocketmq.common.protocol.route.QueueData;
 import org.apache.rocketmq.common.protocol.route.TopicRouteData;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TopicPublishInfo {
+    /**
+     * 是否是顺序消息
+     */
     private boolean orderTopic = false;
     private boolean haveTopicRouterInfo = false;
+    /**
+     * 该主题队列的消息队列
+     */
     private List<MessageQueue> messageQueueList = new ArrayList<MessageQueue>();
+    /**
+     * 每选择一次消息队列，该值会自增l ，如果Integer.MAX_VALUE, 则重置为 0 ，用于选择消息队列
+     */
     private volatile ThreadLocalIndex sendWhichQueue = new ThreadLocalIndex();
     private TopicRouteData topicRouteData;
 
@@ -66,10 +76,20 @@ public class TopicPublishInfo {
         this.haveTopicRouterInfo = haveTopicRouterInfo;
     }
 
+    /**
+     * @param lastBrokerName lastBrokerName就是上一次选择的执行发送消息失败的 Broker。 第一次执行消息队列选择时，lastBrokerName 为 null
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
+        /**
+         * 直接用 sendWhichQueue 自增再获取值，与当前路由表中消息队列个数取模，返回该位置的 MessageQueue(selectOneMessageQueue（）方法）
+         */
         if (lastBrokerName == null) {
             return selectOneMessageQueue();
         } else {
+            /**
+             * 如果消息发送再失败的话，下次进行消息队列选择时规避上次 MesageQueue 所在的 Broker，否则还是很有可能再次失败
+             */
             int index = this.sendWhichQueue.getAndIncrement();
             for (int i = 0; i < this.messageQueueList.size(); i++) {
                 int pos = Math.abs(index++) % this.messageQueueList.size();
