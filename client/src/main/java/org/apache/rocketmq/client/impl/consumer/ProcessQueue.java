@@ -41,7 +41,7 @@ public class ProcessQueue {
     private final static long PULL_MAX_IDLE_TIME = Long.parseLong(System.getProperty("rocketmq.client.pull.pullMaxIdleTime", "120000"));
     private final InternalLogger log = ClientLogger.getLog();
     /**
-     * 消息映射读写锁
+     * 读写锁，控制多线程并发修改 msgTreeMap、msgTreeMapTemp
      */
     private final ReadWriteLock lockTreeMap = new ReentrantReadWriteLock();
     /**
@@ -50,7 +50,7 @@ public class ProcessQueue {
      */
     private final TreeMap<Long, MessageExt> msgTreeMap = new TreeMap<Long, MessageExt>();
     /**
-     * 消息数
+     * ProcessQueue 中总消息数
      */
     private final AtomicLong msgCount = new AtomicLong();
     private final AtomicLong msgSize = new AtomicLong();
@@ -61,11 +61,20 @@ public class ProcessQueue {
     private final TreeMap<Long, MessageExt> consumingMsgOrderlyTreeMap = new TreeMap<Long, MessageExt>();
     private final AtomicLong tryUnlockTimes = new AtomicLong(0);
     /**
-     * 添加消息最大队列位置
+     * 当前 ProcessQueue 中包含的最大队列偏移量
      */
     private volatile long queueOffsetMax = 0L;
+    /**
+     * 当前 ProccesQueue 是否被丢弃
+     */
     private volatile boolean dropped = false;
+    /**
+     * 上一次开始消息拉取时间戳
+     */
     private volatile long lastPullTimestamp = System.currentTimeMillis();
+    /**
+     * 上一次消息消费时间戳
+     */
     private volatile long lastConsumeTimestamp = System.currentTimeMillis();
     private volatile boolean locked = false;
     private volatile long lastLockTimestamp = System.currentTimeMillis();
@@ -81,15 +90,23 @@ public class ProcessQueue {
      */
     private volatile long msgAccCnt = 0;
 
+    /**
+     * 判断锁是否过期 ，锁超时时间默认为 30s 。 可以通过系统参数 rocketmq.client.rebalance.lockMaxLiveTime 来设置
+     */
     public boolean isLockExpired() {
         return (System.currentTimeMillis() - this.lastLockTimestamp) > REBALANCE_LOCK_MAX_LIVE_TIME;
     }
 
+    /**
+     * 判断 PullMessageService 是否空闲， 默认 120s ，通过系统参数 rocketmq.client.pull.pullMaxldleTime 来设置 。
+     */
     public boolean isPullExpired() {
         return (System.currentTimeMillis() - this.lastPullTimestamp) > PULL_MAX_IDLE_TIME;
     }
 
     /**
+     * 移除消费超时的消息， 默认超过 15 分钟未消费的消息将延迟 3 个延迟级别再消费
+     *
      * @param pushConsumer
      */
     public void cleanExpiredMsg(DefaultMQPushConsumer pushConsumer) {
@@ -147,8 +164,7 @@ public class ProcessQueue {
     }
 
     /**
-     * 添加消息，并返回是否提交给消费者
-     * 返回true，当有新消息添加成功时，
+     * 添加消息，PullMessageService 拉取消息后，先调用该方法将消息添加到ProcessQueue
      *
      * @param msgs 消息
      * @return 是否提交给消费者
@@ -197,6 +213,10 @@ public class ProcessQueue {
         return dispatchToConsume;
     }
 
+    /**
+     * 获取当前消息最大间隔。getMaxSpan()/20 并不能说明 Processqueue 中包含的消息个
+     * 数，但是能说明当前处理队列中第一条消息与最后一条消息的偏移量已经超过的消息个数
+     */
     public long getMaxSpan() {
         try {
             this.lockTreeMap.readLock().lockInterruptibly();
@@ -283,8 +303,7 @@ public class ProcessQueue {
     }
 
     /**
-     * 回滚消费中的消息
-     * 逻辑类似于{@link #makeMessageToCosumeAgain(List)}
+     * 将 msgTreeMapTmp 中所有消息重新放入到 msgTreeMap 并清除 msgTreeMapTmp
      */
     public void rollback() {
         try {
@@ -301,7 +320,7 @@ public class ProcessQueue {
     }
 
     /**
-     * 提交消费中的消息已消费成功，返回消费进度
+     * 将 msgTreeMapTmp 中的消息清除，表示成功处理该批消息
      *
      * @return 消费进度
      */
@@ -331,8 +350,7 @@ public class ProcessQueue {
     }
 
     /**
-     * 指定消息重新消费
-     * 逻辑类似于{@link #rollback()}
+     * 重新消费该批消息
      *
      * @param msgs 消息
      */
@@ -353,7 +371,7 @@ public class ProcessQueue {
     }
 
     /**
-     * 获得持有消息前N条
+     * 从 ProcessQueue 中取出 batchSize 条消息
      *
      * @param batchSize 条数
      * @return 消息
